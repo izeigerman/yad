@@ -88,6 +88,7 @@ class DownloadTask(dst: String, taskId: Option[DownloadId],
     stateLock.synchronized {
       canceled = true
       paused = false
+      stateLock.notify()
       logger.debug(s"Canceled task $id")
     }
   }

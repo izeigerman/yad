@@ -82,13 +82,25 @@ class DownloadServiceActor extends Actor with ActorLogging {
   }
 
   private def downloadControlsReceive: Receive = {
-    case c @ CancelDownloadTask(id) => forwardControlMessage(id, c)
+    case c @ CancelDownloadTask(id) => cancelTask(c)
     case p: PauseDownloadTask => pauseTask(p)
     case r: ResumeDownloadTask => resumeTask(r)
     case g @ GetDownloadTaskProgress(id) => forwardControlMessage(id, g)
     case GetAllRecords => storageService.forward(GetAllRecords)
     case GetUnfinishedRecords => storageService.forward(GetUnfinishedRecords)
     case getRecord: GetRecord => storageService.forward(getRecord)
+  }
+
+  private def cancelTask(c: CancelDownloadTask): Unit = {
+    if (pendingTasks.exists(_._1 == c.id)) {
+      pendingTasks.dequeueFirst(_._1 == c.id)
+      storageService ! DownloadCanceled(c.id, System.currentTimeMillis())
+      sender() ! OperationSucceeded(c.id)
+    } else if (pausedTasks.contains(c.id)) {
+      pausedTasks(c.id).forward(c)
+    } else {
+      forwardControlMessage(c.id, c)
+    }
   }
 
   private def pauseTask(p: PauseDownloadTask): Unit = {
